@@ -162,7 +162,6 @@ To measure it fairly, time index loading separately from repeated searches, use 
 - Tokens are ASCII letters and digits; punctuation generally separates tokens, while non-English letters are excluded.
 - Phrase queries require consecutive tokens and at least two words.
 - Proximity uses absolute token distance and permits either order.
-- The index and corpus paths are relative to the current working directory.
-- `reuters21578/extract.py` also uses paths relative to the current working directory; run it from `reuters21578/`.
+
 - The full index is held in memory, and the command-line loop processes queries serially.
 - The index is a generated snapshot. Changes to corpus files are not reflected until `build_index.py` is run again.
