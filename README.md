@@ -10,7 +10,7 @@ The project currently contains 100 corpus files (`doc1.txt` through `doc100.txt`
 
 Reuters-21578 is a collection of 21,578 Reuters newswire articles commonly used in information-retrieval and text-classification exercises. The project includes 100 text files (`corpus/doc1.txt` through `corpus/doc100.txt`), not all 21,578 articles. `reuters21578/extract.py` shows how these local files are produced: it reads `reut2-000.sgm`, takes the first 100 `<REUTERS>` records in file order, and writes each record's title and body as `doc1.txt` through `doc100.txt`. The local names are not Reuters article IDs. The search scripts do not load category labels or other Reuters metadata; they index the extracted text only.
 
-## Methodology
+## Search Process
 
 The search engine uses the following processing steps:
 
