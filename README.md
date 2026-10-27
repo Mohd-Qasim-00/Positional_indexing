@@ -148,20 +148,8 @@ f(word1, d) * f(word2, d)
 
 The results list also uses space proportional to the number of matching pairs that are printed. Frequent terms can produce many comparisons and a large output.
 
-## Latency and Throughput
 
-**Latency** is the time from submitting one query until its results are printed. For this program, startup includes reading and parsing the entire JSON index. After startup, a single-word query is usually driven by the number of matching occurrences, while phrase and proximity latency also depends on how often the query terms occur together in each document. Console output and especially large result sets add to latency.
 
-**Throughput** is the number of queries completed per unit of time, such as queries per second. This project does not include a benchmark, so no measured throughput or latency figure is claimed. Results would depend on the machine, index size, query terms, result volume, and whether startup time is included. The program handles one query at a time in one interactive process; it is not a concurrent search service.
+## Conclusion
 
-To measure it fairly, time index loading separately from repeated searches, use a fixed set of representative word, phrase, and proximity queries, and report the corpus/index size and hardware. Avoid comparing timings where one run prints substantially more results than another.
-
-## Current Scope and Limitations
-
-- Exact token matching only; there is no ranking, relevance score, stemming, wildcard, or fuzzy search.
-- Tokens are ASCII letters and digits; punctuation generally separates tokens, while non-English letters are excluded.
-- Phrase queries require consecutive tokens and at least two words.
-- Proximity uses absolute token distance and permits either order.
-
-- The full index is held in memory, and the command-line loop processes queries serially.
-- The index is a generated snapshot. Changes to corpus files are not reflected until `build_index.py` is run again.
+This project demonstrates the fundamentals of Information Retrieval through positional indexing and query processing. It shows how token positions can be used to support word, exact phrase, and proximity searches efficiently for a small document collection.
