@@ -117,8 +117,9 @@ order.
 
 - `output/vocabulary.json`: Vocabulary, CF, DF, and postings offsets.
 - `output/postings.jsonl`: Positional postings for all indexed words.
-- `output/test_results.txt`: Results for five generated sample queries. These
-  are example runs, not automated checks against expected results.
+- `output/test_results.txt`: Results of five automated search checks. Expected
+  results are calculated from the source documents and compared with actual
+  indexed search results. Each case is marked PASS or FAIL.
 - `output/rare_terms.txt`: Ten words with the lowest CF, their CF and DF, and
   their positional postings.
 - `output/index_stats.txt`: Number of documents, vocabulary size, and total

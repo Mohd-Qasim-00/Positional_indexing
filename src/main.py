@@ -4,6 +4,7 @@ from src.preprocess import preprocess_document
 from src.positional_index import build_positional_index
 from src.storage import save_index, load_vocabulary
 from src.search import search_query
+from src.storage import read_posting
 
 
 # Project folders
@@ -13,65 +14,122 @@ DOCUMENTS_FOLDER = BASE_DIR / "dataset" / "documents"
 OUTPUT_FOLDER = BASE_DIR / "output"
 
 
+def build_reference_index(document_files):
+    """Build expected postings directly from source documents for checking."""
+    reference = {}
+
+    for document_path in document_files:
+        for term, position in preprocess_document(document_path):
+            reference.setdefault(term, {}).setdefault(
+                document_path.stem, []
+            ).append(position)
+
+    return reference
+
+
+def expected_phrase(terms, reference):
+    if not terms:
+        return {}
+
+    result = {}
+    first_term_postings = reference.get(terms[0], {})
+
+    for doc_id, start_positions in first_term_postings.items():
+        term_position_sets = [
+            set(reference.get(term, {}).get(doc_id, []))
+            for term in terms[1:]
+        ]
+        matches = [
+            start for start in start_positions
+            if all(
+                start + offset + 1 in positions
+                for offset, positions in enumerate(term_position_sets)
+            )
+        ]
+        if matches:
+            result[doc_id] = matches
+
+    return result
+
+
+def expected_near(term1, term2, distance, reference):
+    result = {}
+    postings1 = reference.get(term1, {})
+    postings2 = reference.get(term2, {})
+
+    for doc_id, positions1 in postings1.items():
+        positions2 = postings2.get(doc_id, [])
+        matches = [
+            (p1, p2)
+            for p1 in positions1
+            for p2 in positions2
+            if 0 < abs(p1 - p2) <= distance + 1
+        ]
+        if matches:
+            result[doc_id] = matches
+
+    return result
+
+
 def write_test_results(vocabulary, output_folder):
-
-    # Get terms ordered by collection frequency
-    sorted_terms = sorted(
-        vocabulary,
-        key=lambda term: vocabulary[term]["cf"],
-        reverse=True
-    )
-
-    if not sorted_terms:
-        raise ValueError("Vocabulary is empty.")
-
-    # Read first document to create valid phrase and NEAR examples
     document_files = sorted(DOCUMENTS_FOLDER.glob("*.txt"))
+    if not document_files:
+        raise FileNotFoundError(f"No .txt documents found in {DOCUMENTS_FOLDER}")
 
+    reference = build_reference_index(document_files)
     first_tokens = preprocess_document(document_files[0])
-
     if len(first_tokens) < 3:
-        raise ValueError(
-            "First document must contain at least 3 tokens."
-        )
+        raise ValueError("The first document must contain at least 3 tokens.")
 
-    word1 = first_tokens[0][0]
-    word2 = first_tokens[1][0]
-    word3 = first_tokens[2][0]
+    word1, word2, word3 = [token for token, _ in first_tokens[:3]]
+    rare_term = min(
+        vocabulary,
+        key=lambda term: (vocabulary[term]["cf"], vocabulary[term]["df"], term)
+    )
+    missing_term = "अप्राप्यपरीक्षणशब्द"
+    while missing_term in reference:
+        missing_term += "क"
 
-    test_queries = [
-        sorted_terms[0],
-        f'"{word1} {word2}"',
-        f"{word1} NEAR/5 {word3}",
-        sorted_terms[min(1, len(sorted_terms) - 1)],
-        f'"{word2} {word3}"'
+    test_cases = [
+        ("Single term (positive)", rare_term, reference.get(rare_term, {})),
+        ("Exact phrase (positive)", f'"{word1} {word2}"', expected_phrase([word1, word2], reference)),
+        ("Exact phrase (negative)", f'"{word1} {missing_term}"', {}),
+        ("NEAR/1 (positive)", f"{word1} NEAR/1 {word3}", expected_near(word1, word3, 1, reference)),
+        ("NEAR/1 (negative)", f"{word1} NEAR/1 {missing_term}", {}),
     ]
 
     result_file = output_folder / "test_results.txt"
-
+    passed = 0
     with open(result_file, "w", encoding="utf-8") as file:
+        file.write("POSITIONAL SEARCH CHECKS\n")
+        file.write("Expected results are calculated independently from the source documents.\n")
 
-        for number, query in enumerate(test_queries, start=1):
+        for number, (description, query, expected) in enumerate(test_cases, start=1):
+            actual = search_query(query, vocabulary, output_folder)
+            success = actual == expected
+            passed += int(success)
 
-            result = search_query(
-                query,
-                vocabulary,
-                output_folder
-            )
-
-            file.write(f"\nTEST CASE {number}\n")
+            file.write(f"\nTEST CASE {number}: {description}\n")
             file.write(f"Query: {query}\n")
-            file.write(f"Matching documents: {len(result)}\n")
+            file.write(f"Status: {'PASS' if success else 'FAIL'}\n")
+            file.write(f"Expected matching documents: {len(expected)}\n")
+            file.write(f"Actual matching documents: {len(actual)}\n")
 
-            for doc_id, positions in result.items():
-                file.write(
-                    f"{doc_id} -> {positions}\n"
-                )
+            if not success:
+                file.write(f"Expected results: {expected}\n")
+                file.write(f"Actual results: {actual}\n")
+            elif actual:
+                for doc_id, positions in actual.items():
+                    file.write(f"{doc_id} -> {positions}\n")
+            else:
+                file.write("No matching documents found, as expected.\n")
 
-            if not result:
-                file.write("No matching documents found.\n")
+        file.write(f"\nSUMMARY: {passed}/{len(test_cases)} checks passed.\n")
 
+    print(f"Search checks: {passed}/{len(test_cases)} passed")
     print("Test results saved:", result_file)
+    if passed != len(test_cases):
+        raise AssertionError(f"Only {passed}/{len(test_cases)} search checks passed.")
 
 
 def write_rare_terms(vocabulary, output_folder):
@@ -97,8 +155,6 @@ def write_rare_terms(vocabulary, output_folder):
             file.write(f"\n{number}. Term: {term}\n")
             file.write(f"CF: {data['cf']}\n")
             file.write(f"DF: {data['df']}\n")
-
-            from src.storage import read_posting
 
             postings = read_posting(
                 term,
