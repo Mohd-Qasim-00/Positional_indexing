@@ -1,84 +1,69 @@
 # Hindi Positional Index
 
-This project builds a positional inverted index for Hindi text documents. It records each term's collection frequency (CF), document frequency (DF), and the positions where the term occurs in each document. It also supports word, exact phrase, and `NEAR/k` searches.
+This project builds a positional inverted index for Hindi text from 100 Hindi
+Wikipedia article text files. For every indexed term, it records collection
+frequency (CF), document frequency (DF), and the documents and token positions
+where the term occurs. It supports single-term, exact-phrase, and `NEAR/k`
+searches.
 
-## Dataset
+## Dataset and tokenization
 
-The project includes 100 Hindi Wikipedia article text files in `dataset/documents/`, named `DOC1.txt` through `DOC100.txt`. Files are UTF-8. The optional downloader, `download_dataset.py`, collects articles through the Hindi Wikipedia API and saves them in this folder.
+The included UTF-8 documents are in `dataset/documents/`, named `DOC1.txt`
+through `DOC100.txt`. The optional `download_dataset.py` script fetches Hindi
+Wikipedia article text using the Wikipedia API and writes documents to that
+folder. It requires an internet connection and the `requests` package.
 
-The tokenizer normalizes text with Unicode NFC and indexes Devanagari sequences only. English and other scripts are ignored. Positions start at 1 and count the tokens extracted by the tokenizer.
-
-## Project files
-
-- `download_dataset.py` — downloads Hindi Wikipedia article text. Requires internet access and the `requests` package.
-
-# Hindi Positional Index
-
-## About the project
-
-This project creates a positional index for Hindi text. It uses 100 Hindi
-Wikipedia articles. For each indexed word, the program stores its collection
-frequency (CF), document frequency (DF), document IDs, and word positions.
-
-The index can search for one word, an exact phrase, or two words near each
-other.
-
-## Dataset
-
-The text files are in `dataset/documents/` and are named `DOC1.txt` to
-`DOC100.txt`. The `download_dataset.py` script can download Hindi Wikipedia
-articles through the Wikipedia API. The included dataset can be used without
-downloading it again.
-
-The indexer normalizes text to Unicode NFC and indexes Devanagari text. Other
-scripts, such as English, are not indexed. Positions start at 1 and count the
-extracted words in each document.
+The tokenizer normalizes text to Unicode NFC and extracts Devanagari sequences;
+other scripts are ignored. Positions start at 1 and count the extracted tokens
+in each document.
 
 ## Project files
 
-- `download_dataset.py`: Downloads articles from Hindi Wikipedia. It needs an
-  internet connection and the `requests` package.
-- `src/preprocess.py`: Reads a text file, normalizes it, extracts Devanagari
-  words, and assigns positions.
-- `src/positional_index.py`: Builds the index and calculates CF and DF for
-  each word.
-- `src/storage.py`: Saves and loads the vocabulary and postings.
-- `src/search.py`: Provides single-word, exact-phrase, and `NEAR/k` search.
-- `src/search_cli.py`: Provides an interactive search prompt.
-- `src/main.py`: Builds the index and writes the example search results, rare
-  terms, and index statistics.
+- `download_dataset.py` downloads Hindi Wikipedia articles.
+- `src/preprocess.py` normalizes document text, extracts Devanagari tokens, and
+  assigns token positions.
+- `src/positional_index.py` builds postings and calculates CF and DF.
+- `src/storage.py` writes the vocabulary and postings to disk and reads
+  individual term postings.
+- `src/search.py` implements single-term, exact-phrase, and `NEAR/k` searches.
+- `src/search_cli.py` provides an interactive search prompt.
+- `src/main.py` builds and saves the index, runs five search checks, and
+  generates the rare-term and statistics reports.
+- `dataset/documents/` contains the input documents.
+- `output/` contains the generated index files and reports.
 
-## How the index is stored
+## Index format and storage
 
-The program writes two index files:
+The index is saved in two files:
 
-- `output/vocabulary.json` stores each word's CF, DF, and byte offset in the
-  postings file. The vocabulary is loaded into memory for searching.
-- `output/postings.jsonl` stores each word's document IDs and positions. The
-  search code uses the offset to read a word's postings from this file.
+- `output/vocabulary.json` contains each term's CF, DF, and byte offset into the
+  postings file. Search loads this vocabulary into memory.
+- `output/postings.jsonl` contains each term's document IDs and positional
+  postings. Search seeks to the relevant byte offset and reads that term's
+  postings from disk.
 
-During index creation, the current program first builds the full index in
-memory, including postings, and then saves the postings to disk. Therefore,
-postings are stored on disk for searching, but index creation does not keep
-postings on disk the whole time.
+During index construction, the current implementation temporarily keeps the
+complete postings index in memory before writing it to disk. Thus, postings
+are stored on disk for subsequent searches, but are not kept exclusively on
+disk throughout index construction.
 
 ## Requirements
 
 - Python 3.8 or newer.
-- The included text files in `dataset/documents/`.
-- The `requests` package only if you want to download the dataset again.
+- The included documents in `dataset/documents/`.
+- The `requests` package only when downloading the dataset.
 
-Install `requests` if needed:
+To install the optional downloader dependency:
 
 ```bash
 python -m pip install requests
 ```
 
-## How to run
+## Run the project
 
-Run these commands from the project folder, where this README is located.
+Run commands from the project folder (the folder containing this README).
 
-Build the index and create the output reports:
+Build the index and regenerate the reports:
 
 ```bash
 python -m src.main
@@ -90,18 +75,18 @@ Start interactive search after building the index:
 python -m src.search_cli
 ```
 
-Download the dataset again, if needed:
+Download the dataset again if needed:
 
 ```bash
 python download_dataset.py
 ```
 
-The downloader writes files into `dataset/documents/` and can replace files
-with the same names.
+The downloader writes into `dataset/documents/` and may replace files with
+matching names.
 
 ## Search examples
 
-Use the same Hindi spelling as in the indexed text.
+Use the same Hindi spelling as in the indexed text:
 
 ```text
 भारत
@@ -109,21 +94,23 @@ Use the same Hindi spelling as in the indexed text.
 भारत NEAR/5 सरकार
 ```
 
-The phrase search finds consecutive words in the same order. `NEAR/5` finds
-the two words when they have up to five intervening indexed words, in either
-order.
+An exact phrase matches consecutive tokens in the given order. `NEAR/5`
+matches the two terms when they are no more than five intervening tokens apart,
+in either order.
 
-## Output files
+## Generated output
 
-- `output/vocabulary.json`: Vocabulary, CF, DF, and postings offsets.
-- `output/postings.jsonl`: Positional postings for all indexed words.
-- `output/test_results.txt`: Results of five automated search checks. Expected
-  results are calculated from the source documents and compared with actual
-  indexed search results. Each case is marked PASS or FAIL.
-- `output/rare_terms.txt`: Ten words with the lowest CF, their CF and DF, and
+- `output/vocabulary.json`: in-memory vocabulary data saved as JSON, including
+  CF, DF, and postings offsets.
+- `output/postings.jsonl`: positional postings stored on disk.
+- `output/test_results.txt`: five automated search checks with expected and
+  actual matching documents and positions.
+- `output/rare_terms.txt`: ten terms with the lowest CF, their CF and DF, and
   their positional postings.
-- `output/index_stats.txt`: Number of documents, vocabulary size, and total
-  indexed tokens.
+- `output/index_stats.txt`: document count, vocabulary size, and total indexed
+  token count.
 
-The current output reports 100 documents, a vocabulary of 11,531 words, and
-69,737 indexed tokens. These values can change if the dataset changes.
+The checked-in output currently reports 100 documents, a vocabulary of 11,531
+terms, and 69,737 indexed tokens. These totals may change if the dataset
+changes and the index is rebuilt.
+
