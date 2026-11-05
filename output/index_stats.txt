@@ -1,0 +1,5 @@
+POSITIONAL INDEX STATISTICS
+============================
+Total documents: 100
+Vocabulary size: 11531
+Total tokens: 69737
