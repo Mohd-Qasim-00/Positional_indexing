@@ -22,8 +22,10 @@ in each document.
 - `download_dataset.py` downloads Hindi Wikipedia articles.
 - `src/preprocess.py` normalizes document text, extracts Devanagari tokens, and
   assigns token positions.
-- `src/positional_index.py` builds postings and calculates CF and DF.
-- `src/storage.py` writes the vocabulary and postings to disk and reads
+- `src/positional_index.py` processes one document at a time and yields that
+  document's term positions.
+- `src/storage.py` streams each document's postings to disk while keeping only
+  vocabulary statistics and postings offsets in memory; it also reads
   individual term postings.
 - `src/search.py` implements single-term, exact-phrase, and `NEAR/k` searches.
 - `src/search_cli.py` provides an interactive search prompt.
@@ -36,16 +38,14 @@ in each document.
 
 The index is saved in two files:
 
-- `output/vocabulary.json` contains each term's CF, DF, and byte offset into the
+- `output/vocabulary.json` contains each term's CF, DF, and byte offsets into the
   postings file. Search loads this vocabulary into memory.
-- `output/postings.jsonl` contains each term's document IDs and positional
-  postings. Search seeks to the relevant byte offset and reads that term's
-  postings from disk.
-
-During index construction, the current implementation temporarily keeps the
-complete postings index in memory before writing it to disk. Thus, postings
-are stored on disk for subsequent searches, but are not kept exclusively on
-disk throughout index construction.
+- `output/postings.jsonl` contains one JSON record per term and document, with
+  that term's positions in the document. The in-memory vocabulary stores each
+  term's CF, DF, and the byte offsets of its posting records. Search seeks to
+  those offsets and reads the term's postings from disk. During construction,
+  only the current document's term positions and the vocabulary are held in
+  memory; the complete postings list is never accumulated in memory.
 
 ## Requirements
 
@@ -100,8 +100,8 @@ in either order.
 
 ## Generated output
 
-- `output/vocabulary.json`: in-memory vocabulary data saved as JSON, including
-  CF, DF, and postings offsets.
+- `output/vocabulary.json`: vocabulary data saved as JSON, including CF, DF,
+  and the byte offsets of the term's posting records.
 - `output/postings.jsonl`: positional postings stored on disk.
 - `output/test_results.txt`: five automated search checks with expected and
   actual matching documents and positions.
@@ -113,4 +113,3 @@ in either order.
 The checked-in output currently reports 100 documents, a vocabulary of 11,531
 terms, and 69,737 indexed tokens. These totals may change if the dataset
 changes and the index is rebuilt.
-

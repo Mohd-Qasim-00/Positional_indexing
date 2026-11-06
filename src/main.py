@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.preprocess import preprocess_document
-from src.positional_index import build_positional_index
+from src.positional_index import iter_document_postings
 from src.storage import save_index, load_vocabulary
 from src.search import search_query
 from src.storage import read_posting
@@ -14,15 +14,16 @@ DOCUMENTS_FOLDER = BASE_DIR / "dataset" / "documents"
 OUTPUT_FOLDER = BASE_DIR / "output"
 
 
-def build_reference_index(document_files):
+def build_reference_index(document_files, terms):
     """Build expected postings directly from source documents for checking."""
     reference = {}
 
     for document_path in document_files:
         for term, position in preprocess_document(document_path):
-            reference.setdefault(term, {}).setdefault(
-                document_path.stem, []
-            ).append(position)
+            if term in terms:
+                reference.setdefault(term, {}).setdefault(
+                    document_path.stem, []
+                ).append(position)
 
     return reference
 
@@ -76,7 +77,6 @@ def write_test_results(vocabulary, output_folder):
     if not document_files:
         raise FileNotFoundError(f"No .txt documents found in {DOCUMENTS_FOLDER}")
 
-    reference = build_reference_index(document_files)
     first_tokens = preprocess_document(document_files[0])
     if len(first_tokens) < 3:
         raise ValueError("The first document must contain at least 3 tokens.")
@@ -85,6 +85,9 @@ def write_test_results(vocabulary, output_folder):
     rare_term = min(
         vocabulary,
         key=lambda term: (vocabulary[term]["cf"], vocabulary[term]["df"], term)
+    )
+    reference = build_reference_index(
+        document_files, {rare_term, word1, word2, word3}
     )
     missing_term = "अप्राप्यपरीक्षणशब्द"
     while missing_term in reference:
@@ -170,10 +173,10 @@ def write_rare_terms(vocabulary, output_folder):
     print("Rare terms saved:", result_file)
 
 
-def write_statistics(index, total_documents, output_folder):
+def write_statistics(vocabulary, total_documents, output_folder):
 
     total_tokens = sum(
-        data["cf"] for data in index.values()
+        data["cf"] for data in vocabulary.values()
     )
 
     stats_file = output_folder / "index_stats.txt"
@@ -183,7 +186,7 @@ def write_statistics(index, total_documents, output_folder):
         file.write("POSITIONAL INDEX STATISTICS\n")
         file.write("============================\n")
         file.write(f"Total documents: {total_documents}\n")
-        file.write(f"Vocabulary size: {len(index)}\n")
+        file.write(f"Vocabulary size: {len(vocabulary)}\n")
         file.write(f"Total tokens: {total_tokens}\n")
 
     print("Statistics saved:", stats_file)
@@ -201,33 +204,28 @@ def main():
     # Step 1: Build positional index
     print("Step 1: Building positional index...")
 
-    index, total_documents = build_positional_index(
-        DOCUMENTS_FOLDER
+    total_documents = save_index(
+        iter_document_postings(DOCUMENTS_FOLDER), OUTPUT_FOLDER
     )
 
-    # Step 2: Save vocabulary and postings
-    print("\nStep 2: Saving index to disk...")
-
-    save_index(index, OUTPUT_FOLDER)
-
-    # Step 3: Load vocabulary into main memory
-    print("\nStep 3: Loading vocabulary...")
+    # Step 2: Load vocabulary into main memory
+    print("\nStep 2: Loading vocabulary...")
 
     vocabulary = load_vocabulary(OUTPUT_FOLDER)
 
-    # Step 4: Generate test cases
-    print("\nStep 4: Running five test cases...")
+    # Step 3: Generate test cases
+    print("\nStep 3: Running five test cases...")
 
     write_test_results(vocabulary, OUTPUT_FOLDER)
 
-    # Step 5: Generate rare terms
-    print("\nStep 5: Generating ten rare terms...")
+    # Step 4: Generate rare terms
+    print("\nStep 4: Generating ten rare terms...")
 
     write_rare_terms(vocabulary, OUTPUT_FOLDER)
 
-    # Step 6: Write statistics
+    # Step 5: Write statistics
     write_statistics(
-        index,
+        vocabulary,
         total_documents,
         OUTPUT_FOLDER
     )

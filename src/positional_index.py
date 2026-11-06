@@ -4,14 +4,7 @@ from pathlib import Path
 from src.preprocess import preprocess_document
 
 
-def build_positional_index(documents_folder):
-
-    index = defaultdict(lambda: {
-        "cf": 0,
-        "df": 0,
-        "postings": {}
-    })
-
+def iter_document_postings(documents_folder):
     document_files = sorted(
         Path(documents_folder).glob("*.txt")
     )
@@ -22,24 +15,12 @@ def build_positional_index(documents_folder):
         )
 
     for file_path in document_files:
-
         doc_id = file_path.stem
-
         tokens = preprocess_document(file_path)
+        document_postings = defaultdict(list)
 
         for word, position in tokens:
-
-            index[word]["cf"] += 1
-
-            if doc_id not in index[word]["postings"]:
-                index[word]["postings"][doc_id] = []
-
-            index[word]["postings"][doc_id].append(position)
-
-        # DF = number of documents containing the term
-        for word in set(word for word, position in tokens):
-            index[word]["df"] += 1
+            document_postings[word].append(position)
 
         print(f"Indexed: {doc_id}")
-
-    return dict(index), len(document_files)
+        yield doc_id, document_postings
